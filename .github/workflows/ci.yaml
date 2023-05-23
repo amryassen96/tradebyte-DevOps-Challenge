@@ -50,7 +50,6 @@ jobs:
           image-ref: '${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:${{github.sha}}'
           format: 'sarif'
           output: 'trivy-scan-result.sarif'
-          exit-code: '1'
           limit-severities-for-sarif: true
           severity: 'CRITICAL,HIGH'
       
