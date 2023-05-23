@@ -65,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: trivy-scan-result 
-          path: trivy-scan-result.txt
+          path: trivy-scan-result.sarif
 
 
       - name: Docker Push
