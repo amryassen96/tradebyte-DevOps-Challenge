@@ -41,8 +41,31 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker
+      - name: Build Docker 
         run: docker build -t ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:${{github.sha}} ./$DIR
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:${{github.sha}}'
+          format: 'sarif'
+          output: 'trivy-scan-result.sarif'
+          exit-code: '1'
+          limit-severities-for-sarif: true
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-scan-result.sarif'
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: trivy-scan-result 
+          path: trivy-scan-result.sarif
+
 
       - name: Docker Push
         run: docker push ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:${{github.sha}}
