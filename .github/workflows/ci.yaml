@@ -25,6 +25,7 @@ jobs:
 
       - name: Run tests
         run: python tests/test.py
+        
   build-push-docker:
     name: Build & Push Docker
     runs-on: ubuntu-latest
