@@ -29,9 +29,18 @@ class MainHandler(tornado.web.RequestHandler):
         )
 
 
+class HealthCheckHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.set_status(200)
+        self.finish({'health': 'ok'})
+
+
 class Application(tornado.web.Application):
     def __init__(self):
-        handlers = [(r"/", MainHandler)]
+        handlers = [
+            (r"/health", HealthCheckHandler),
+            (r"/", MainHandler),
+        ]
         settings = {
             "template_path": os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), "templates"
