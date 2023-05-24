@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: registry.k8s.io/redis
+        resources:
+          limits:
+            memory: "500Mi"
+            cpu: "200m"
+          requests:
+             memory: "500Mi"
+             cpu: "200m"
+        ports:
+        - containerPort: 6379
