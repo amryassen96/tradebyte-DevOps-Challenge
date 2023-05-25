@@ -124,7 +124,7 @@ jobs:
            mkdir "/tmp/$SHA" && cd "/tmp/$SHA"
            git clone https://github.com/amryassen96/tradebyte-DevOps-Challenge.git
            cd tradebyte-DevOps-Challenge/k8s/app
-           yq yq -e -i '.data.ENVIRONMENT="PROD"' ./configmap.yaml
+           yq -e -i '.data.ENVIRONMENT="PROD"' ./configmap.yaml
            kubectl apply -f ingress.yaml
            kustomize edit set image amralaayassen/tradebyte-challenge=amralaayassen/tradebyte-challenge:prod && cd .. 
            kustomize build . | kubectl apply -f -
