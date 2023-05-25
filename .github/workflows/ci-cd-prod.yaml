@@ -1,11 +1,9 @@
-name: Tradebyte CICD DEV
+name: Tradebyte CICD Production
 
 on:
   push:
-    branches-ignore:
+    branches:
       - master
-    paths-ignore:
-      - '.github/workflows/ci-cd-prod.yaml'
 
   workflow_dispatch:
 
@@ -13,7 +11,7 @@ jobs:
   build-app:
     name: Build Application
     runs-on: ubuntu-latest
-    environment: DEV
+    environment: PROD
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -28,36 +26,63 @@ jobs:
 
       - name: Run tests
         run: python tests/test.py
+  
+  code-scanning:
+    name: Static Code Scanning
+    runs-on: ubuntu-latest
+    needs: build-app
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'python' ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
 
   build-push-docker:
     name: Build & Push Docker
     runs-on: ubuntu-latest
-    environment: DEV
+    environment: PROD
     needs: build-app
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
+        
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          password: ${{ secrets.DOCKER_PASSWORD }}  
 
-      - name: Build Docker
-        run: docker build -t ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:dev-${{github.sha}} ./$DIR
+      - name: Build Docker 
+        run: docker build -t ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:prod ./$DIR
 
+      
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:dev-${{github.sha}}'
+          image-ref: '${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:prod'
 
           format: 'sarif'
           output: 'trivy-scan-result.sarif'
           limit-severities-for-sarif: true
           severity: 'CRITICAL,HIGH'
-
+      
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         if: always()
@@ -67,17 +92,19 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: trivy-scan-result
+          name: trivy-scan-result 
           path: trivy-scan-result.sarif
 
-      - name: Docker Push
-        run: docker push ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:dev-${{github.sha}}
 
+      - name: Docker Push
+        run: docker push ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:prod
+
+  
   deployment:
     name: Deployment
     runs-on: ubuntu-latest
     needs: build-push-docker
-    environment: DEV
+    environment: PROD
     env:
       SHA: ${{github.sha}}
 
@@ -92,11 +119,13 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           envs: SHA
           port: 22
-          script: |
-            sudo kubectl config use-context kind-tradebyte-dev
-            mkdir "/tmp/$SHA" && cd "/tmp/$SHA"
-            git clone https://github.com/amryassen96/tradebyte-DevOps-Challenge.git
-            cd tradebyte-DevOps-Challenge/k8s/app
-            yq yq -e -i '.data.ENVIRONMENT="DEV"' ./configmap.yaml
-            kustomize edit set image amralaayassen/tradebyte-challenge=amralaayassen/tradebyte-challenge:dev-$SHA && kustomize edit set nameprefix dev-$SHA- && cd .. 
-            kustomize build . | kubectl apply -f -
+          script: | 
+           sudo kubectl config use-context kind-tradebyte-prod
+           mkdir "/tmp/$SHA" && cd "/tmp/$SHA"
+           git clone https://github.com/amryassen96/tradebyte-DevOps-Challenge.git
+           cd tradebyte-DevOps-Challenge/k8s/app
+           yq yq -e -i '.data.ENVIRONMENT="PROD"' ./configmap.yaml
+           kustomize edit set image amralaayassen/tradebyte-challenge=amralaayassen/tradebyte-challenge:prod && cd .. 
+           kustomize build . | kubectl apply -f -
+
+        
