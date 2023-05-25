@@ -57,7 +57,7 @@ jobs:
     name: Build & Push Docker
     runs-on: ubuntu-latest
     environment: PROD
-    needs: build-app
+    needs: code-scanning
 
     steps:
       - name: Checkout code
@@ -125,6 +125,7 @@ jobs:
            git clone https://github.com/amryassen96/tradebyte-DevOps-Challenge.git
            cd tradebyte-DevOps-Challenge/k8s/app
            yq yq -e -i '.data.ENVIRONMENT="PROD"' ./configmap.yaml
+           kubectl apply -f ingress.yaml
            kustomize edit set image amralaayassen/tradebyte-challenge=amralaayassen/tradebyte-challenge:prod && cd .. 
            kustomize build . | kubectl apply -f -
 
