@@ -1,0 +1,40 @@
+name: Update Version on PR Merge
+
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  update_version_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'  
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Get branch name
+        id: branch_name
+        run: echo "::set-output name=branch::${{ github.event.pull_request.head.ref }}"
+
+      - name: Update version
+        run: |
+          new_version=$(python -c "import semantic_version; v = semantic_version.Version.parse('{{current_version}}'); print(v.next_patch())")
+          sed -i "s/version='{{current_version}}'/version='$new_version'/" setup.cfg
+          sed -i "s/version = '{{current_version}}'/version = '$new_version'/" setup.cfg
+          git config user.name "GitHub Actions Bot"
+          git config user.email "amryassen96@gmail.com"
+          git commit -am "Bump version to $new_version"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          branch: ${{ steps.branch_name.outputs.branch }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
