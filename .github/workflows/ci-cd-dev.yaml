@@ -2,9 +2,9 @@ name: Tradebyte CICD
 
 on:
   push:
-    branches:
-      - '*'
-      - '!master'
+    branches-ignore:
+      - master
+
   workflow_dispatch:
 
 jobs:
@@ -27,36 +27,38 @@ jobs:
       - name: Run tests
         run: python tests/test.py
   
-  code-scanning:
-    name: Static Code Scanning
-    runs-on: ubuntu-latest
-    needs: build-app
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
+  # code-scanning:
+  #   name: Static Code Scanning
+  #   runs-on: ubuntu-latest
+  #   needs: build-app
+  #   permissions:
+  #     actions: read
+  #     contents: read
+  #     security-events: write
     
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'python' ]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       language: [ 'python' ]
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v2
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
-        with:
-          languages: ${{ matrix.language }}
+  #     - name: Initialize CodeQL
+  #       uses: github/codeql-action/init@v2
+  #       with:
+  #         languages: ${{ matrix.language }}
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+  #     - name: Perform CodeQL Analysis
+  #       uses: github/codeql-action/analyze@v2
+
 
   build-push-docker:
     name: Build & Push Docker
     runs-on: ubuntu-latest
     environment: DEV
-    needs: code-scanning
+    needs: build-app
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -68,12 +70,14 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}  
 
       - name: Build Docker 
-        run: docker build -t ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:${{github.sha}} ./$DIR
+        run: docker build -t ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:dev-${{github.sha}} ./$DIR
+
       
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:${{github.sha}}'
+          image-ref: '${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:dev-${{github.sha}}'
+
           format: 'sarif'
           output: 'trivy-scan-result.sarif'
           limit-severities-for-sarif: true
@@ -93,12 +97,17 @@ jobs:
 
 
       - name: Docker Push
-        run: docker push ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:${{github.sha}}
+        run: docker push ${{secrets.CONTAINER_REGISTRY}}/tradebyte-challenge:dev-${{github.sha}}
+
   
   deployment:
     name: Deployment
     runs-on: ubuntu-latest
     needs: build-push-docker
+    environment: DEV
+    env:
+      SHA: ${{github.sha}}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -108,10 +117,15 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          envs: SHA
           port: 22
           script: | 
-           sudo kubectl config use-context ${{vars.KUBEC_CONTEXT}}
-           kubect get pods
-      
+           sudo kubectl config use-context kind-tradebyte-dev
+           mkdir "/tmp/$SHA" && cd "/tmp/$SHA"
+           git clone https://github.com/amryassen96/tradebyte-DevOps-Challenge.git
+           cd tradebyte-DevOps-Challenge/k8s/app
+           yq yq -e -i '.data.ENVIRONMENT="DEV"' ./configmap.yaml
+           kustomize edit set image amralaayassen/tradebyte-challenge=amralaayassen/tradebyte-challenge:dev-$SHA && kustomize edit set nameprefix dev-$SHA- && cd .. 
+           kustomize build . | kubectl apply -f -
 
         
