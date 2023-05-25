@@ -1,6 +1,9 @@
 name: Tradebyte CICD DEV
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches-ignore:
       - master
